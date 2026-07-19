@@ -368,6 +368,10 @@
   }
 
   // --------------------------------------------------------------- carga ---
+  // Si el navegador reusa la pestaña para otro link (cambia sólo el #), no se
+  // dispara una carga nueva y quedaría el ensayo anterior en pantalla.
+  window.addEventListener('hashchange', function () { location.reload(); });
+
   var token = readToken();
   if (!token) {
     fail('Falta el código del link. Pedí que te lo compartan de nuevo.');
