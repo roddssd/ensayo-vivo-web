@@ -19,6 +19,7 @@
     --muted: #9A9AA2;
     --border: #26262C;
     --success: #46A758;
+    --warning: #E0A030;
     --radius-card: 14px;
   }
   * { box-sizing: border-box; }
@@ -45,6 +46,10 @@
     font-size: 13px; font-weight: 600; text-transform: uppercase;
     letter-spacing: 0.6px; color: var(--muted); margin: 0 0 12px;
   }
+  /* --- Navegación --- */
+  #nav { margin-bottom: 16px; min-height: 20px; }
+  #nav a { color: var(--primary-soft-text); text-decoration: none; font-size: 14px; }
+  #nav a:hover { text-decoration: underline; }
   /* --- Onda + pins --- */
   #wavewrap { position: relative; margin-bottom: 8px; }
   #pins { position: relative; height: 22px; }
@@ -76,10 +81,19 @@
   li + li { border-top: 1px solid var(--border); }
   li:hover { background: var(--surface-alt); }
   li.active { background: var(--primary-soft); }
+  li.plain { cursor: default; }
+  li.plain:hover { background: none; }
   .stamp { color: var(--primary-soft-text); font-variant-numeric: tabular-nums; font-size: 14px; flex-shrink: 0; }
   .note { flex: 1; }
   .range { color: var(--muted); font-size: 13px; }
-  .empty { color: var(--muted); font-size: 14px; }
+  .chip {
+    font-size: 12px; padding: 2px 8px; border-radius: 999px;
+    background: var(--surface-alt); color: var(--muted); flex-shrink: 0;
+  }
+  .chip.idea { color: var(--muted); }
+  .chip.in_progress { color: var(--warning); background: rgba(224, 160, 48, 0.16); }
+  .chip.finished { color: var(--success); background: rgba(70, 167, 88, 0.16); }
+  .empty { color: var(--muted); font-size: 14px; padding: 4px 8px; }
   #msg { text-align: center; padding: 48px 16px; color: var(--muted); }
   footer { text-align: center; color: var(--muted); font-size: 12px; margin-top: 32px; }
 </style>
@@ -89,38 +103,66 @@
 <div id="msg">Cargando…</div>
 
 <main id="app" hidden>
+  <div id="nav"></div>
   <h1 id="title">Ensayo</h1>
   <div class="sub" id="meta"></div>
 
-  <div class="card">
-    <div id="wavewrap">
-      <div id="pins"></div>
-      <canvas id="wave"></canvas>
+  <!-- Vista ENSAYO -->
+  <section id="rehview" hidden>
+    <div class="card">
+      <div id="wavewrap">
+        <div id="pins"></div>
+        <canvas id="wave"></canvas>
+      </div>
+      <div class="times"><span id="cur">0:00</span><span id="dur">0:00</span></div>
+      <div class="controls">
+        <button id="play" class="primary">▶ Reproducir</button>
+        <button id="back">−10 s</button>
+        <button id="fwd">+10 s</button>
+        <span id="clipnote" class="range"></span>
+      </div>
+      <audio id="audio" preload="metadata"></audio>
     </div>
-    <div class="times"><span id="cur">0:00</span><span id="dur">0:00</span></div>
-    <div class="controls">
-      <button id="play" class="primary">▶ Reproducir</button>
-      <button id="back">−10 s</button>
-      <button id="fwd">+10 s</button>
-      <span id="clipnote" class="range"></span>
+
+    <div class="card">
+      <h2>Notas</h2>
+      <ul id="notes"></ul>
+      <p class="empty" id="notesempty" hidden>Este ensayo todavía no tiene notas.</p>
     </div>
-    <audio id="audio" preload="metadata"></audio>
-  </div>
 
-  <div class="card" id="notescard">
-    <h2>Notas</h2>
-    <ul id="notes"></ul>
-  </div>
+    <div class="card" id="clipscard">
+      <h2>Clips</h2>
+      <ul id="clips"></ul>
+    </div>
 
-  <div class="card" id="clipscard">
-    <h2>Clips</h2>
-    <ul id="clips"></ul>
-  </div>
+    <div class="card" id="songscard">
+      <h2>Canciones tocadas</h2>
+      <ul id="songs"></ul>
+    </div>
+  </section>
 
-  <div class="card" id="songscard">
-    <h2>Canciones tocadas</h2>
-    <ul id="songs"></ul>
-  </div>
+  <!-- Vista BANDA -->
+  <section id="bandview" hidden>
+    <div class="card">
+      <h2>Ensayos</h2>
+      <ul id="bandrehearsals"></ul>
+      <p class="empty" id="norehearsals" hidden>Esta banda todavía no tiene ensayos.</p>
+    </div>
+    <div class="card">
+      <h2>Canciones</h2>
+      <ul id="bandsongs"></ul>
+      <p class="empty" id="nosongs" hidden>Esta banda todavía no tiene canciones.</p>
+    </div>
+  </section>
+
+  <!-- Vista CANCIÓN -->
+  <section id="songview" hidden>
+    <div class="card">
+      <h2>Apariciones en ensayos</h2>
+      <ul id="appearances"></ul>
+      <p class="empty" id="noappearances" hidden>Todavía no se tocó en ningún ensayo grabado.</p>
+    </div>
+  </section>
 
   <footer>Compartido con Ensayo Vivo · sólo lectura</footer>
 </main>
@@ -132,11 +174,18 @@
   var SUPABASE_URL = 'https://ykgbqhhnrewgmujauztt.supabase.co';
   // Ventana en la que una nota se considera "sonando" (igual que la app).
   var NOTE_WINDOW_S = 4;
+  // Distancia mínima entre pins antes de agruparlos, en píxeles. Sin esto, dos
+  // notas a pocos segundos se superponen y la de atrás queda intocable (peor en
+  // celular). Mismo criterio que el clustering de la app.
+  var PIN_MIN_PX = 22;
+
+  var STATUS_LABEL = { idea: 'Idea', in_progress: 'En progreso', finished: 'Terminada' };
 
   var $ = function (id) { return document.getElementById(id); };
   var audio = $('audio');
-  var data = null;
-  var clipEnd = null; // si hay un clip en curso, el segundo en que frenar
+  var data = null;      // payload de la vista actual
+  var token = '';       // token del link (fijo mientras no cambie el hash raíz)
+  var clipEnd = null;   // si hay un clip en curso, el segundo en que frenar
 
   function clock(s) {
     if (!isFinite(s) || s < 0) s = 0;
@@ -145,21 +194,40 @@
     return m + ':' + (r < 10 ? '0' : '') + r;
   }
 
+  function fechaLarga(d) {
+    if (!d) return '';
+    return new Date(d + 'T00:00:00').toLocaleDateString('es-UY',
+      { day: 'numeric', month: 'long', year: 'numeric' });
+  }
+
   function fail(text) {
     $('msg').textContent = text;
     $('msg').hidden = false;
     $('app').hidden = true;
   }
 
-  // El token va en el FRAGMENTO (#...), no en el query: así no viaja al
-  // servidor del hosting ni queda en sus logs ni en el Referer.
-  function readToken() {
+  // ------------------------------------------------------------- ruteo -----
+  // El token va en el FRAGMENTO (#), no en el query: así no viaja al servidor
+  // del hosting ni queda en sus logs ni en el Referer.
+  //   #<token>            → banda (si el token es de banda)
+  //   #<token>/r/<id>     → ensayo
+  //   #<token>/s/<id>     → canción
+  function parseHash() {
     var h = (location.hash || '').replace(/^#/, '').trim();
-    if (h) return h;
-    // Compatibilidad: aceptar ?t= por si un link viejo lo trae así.
-    var m = /[?&]t=([^&]+)/.exec(location.search);
-    return m ? decodeURIComponent(m[1]) : '';
+    if (!h) {
+      // Compatibilidad: aceptar ?t= por si un link viejo lo trae así.
+      var m = /[?&]t=([^&]+)/.exec(location.search);
+      h = m ? decodeURIComponent(m[1]) : '';
+    }
+    var parts = h.split('/');
+    return {
+      token: parts[0] || '',
+      view: parts[1] === 'r' ? 'rehearsal' : parts[1] === 's' ? 'song' : 'root',
+      id: parts[2] || null,
+    };
   }
+
+  function go(hash) { location.hash = hash; }
 
   // ---------------------------------------------------------------- onda ---
   var canvas = $('wave'), ctx = canvas.getContext('2d');
@@ -167,6 +235,7 @@
   function drawWave() {
     var ratio = window.devicePixelRatio || 1;
     var w = canvas.clientWidth, h = canvas.clientHeight;
+    if (!w) return;
     canvas.width = w * ratio;
     canvas.height = h * ratio;
     ctx.setTransform(ratio, 0, 0, ratio, 0, 0);
@@ -211,25 +280,19 @@
     return (data && data.durationSeconds) || 0;
   }
 
-  function seekFromEvent(e) {
+  canvas.addEventListener('click', function (e) {
     var rect = canvas.getBoundingClientRect();
-    var x = (e.touches ? e.touches[0].clientX : e.clientX) - rect.left;
-    var frac = Math.max(0, Math.min(1, x / rect.width));
+    var frac = Math.max(0, Math.min(1, (e.clientX - rect.left) / rect.width));
     clipEnd = null;
     $('clipnote').textContent = '';
     audio.currentTime = frac * duration();
-  }
-  canvas.addEventListener('click', seekFromEvent);
+  });
 
   // ---------------------------------------------------------------- pins ---
-  // Distancia mínima entre pins antes de agruparlos, en píxeles. Sin esto, dos
-  // notas a pocos segundos se superponen y la de atrás queda intocable (peor en
-  // celular). Mismo criterio que el clustering de la app.
-  var PIN_MIN_PX = 22;
-
   function renderPins() {
     var box = $('pins');
     box.innerHTML = '';
+    if (!data || !data.annotations) return;
     var total = duration();
     if (!total || !data.annotations.length) return;
     var width = box.clientWidth || 1;
@@ -266,58 +329,6 @@
     audio.play();
   }
 
-  // -------------------------------------------------------------- listas ---
-  function renderLists() {
-    var notes = $('notes');
-    if (!data.annotations.length) {
-      $('notescard').querySelector('h2').insertAdjacentHTML(
-        'afterend', '<p class="empty">Este ensayo todavía no tiene notas.</p>');
-    }
-    data.annotations.forEach(function (a, i) {
-      var li = document.createElement('li');
-      li.dataset.idx = i;
-      li.innerHTML = '<span class="stamp"></span><span class="note"></span>';
-      li.querySelector('.stamp').textContent = clock(a.seconds);
-      li.querySelector('.note').textContent = a.text;
-      li.addEventListener('click', function () { goTo(a.seconds); });
-      notes.appendChild(li);
-    });
-
-    var clips = $('clips');
-    if (!data.clips.length) {
-      $('clipscard').hidden = true;
-    } else {
-      data.clips.forEach(function (c) {
-        var li = document.createElement('li');
-        li.innerHTML = '<span class="stamp"></span><span class="range"></span>';
-        li.querySelector('.stamp').textContent = '▶ ' + clock(c.startSecond);
-        li.querySelector('.range').textContent =
-          'hasta ' + clock(c.endSecond) + ' · ' + Math.round(c.endSecond - c.startSecond) + ' s';
-        li.addEventListener('click', function () { playRange(c.startSecond, c.endSecond); });
-        clips.appendChild(li);
-      });
-    }
-
-    var songs = $('songs');
-    if (!data.songs.length) {
-      $('songscard').hidden = true;
-    } else {
-      data.songs.forEach(function (s) {
-        var li = document.createElement('li');
-        li.innerHTML = '<span class="note"></span><span class="range"></span>';
-        li.querySelector('.note').textContent = s.title;
-        if (s.startSecond != null) {
-          li.querySelector('.range').textContent =
-            clock(s.startSecond) + (s.endSecond != null ? '–' + clock(s.endSecond) : '');
-          li.addEventListener('click', function () { goTo(s.startSecond); });
-        } else {
-          li.style.cursor = 'default';
-        }
-        songs.appendChild(li);
-      });
-    }
-  }
-
   // Reproduce sólo el tramo del clip sobre el audio del ensayo (no hay
   // archivo aparte: el clip es un rango, ver la Edge Function).
   function playRange(start, end) {
@@ -326,6 +337,226 @@
     audio.currentTime = start;
     audio.play();
   }
+
+  function li(html) {
+    var el = document.createElement('li');
+    el.innerHTML = html;
+    return el;
+  }
+
+  // ------------------------------------------------------ vista: ENSAYO ----
+  function renderRehearsal() {
+    $('title').textContent = data.title;
+    var bits = [];
+    if (data.band) bits.push(data.band);
+    if (data.date) bits.push(fechaLarga(data.date));
+    if (data.durationSeconds) bits.push(clock(data.durationSeconds));
+    $('meta').textContent = bits.join(' · ');
+    document.title = data.title + (data.band ? ' · ' + data.band : '') + ' — Ensayo Vivo';
+
+    audio.src = data.audioUrl;
+    $('dur').textContent = clock(data.durationSeconds || 0);
+    $('cur').textContent = '0:00';
+
+    var notes = $('notes');
+    notes.innerHTML = '';
+    $('notesempty').hidden = data.annotations.length > 0;
+    data.annotations.forEach(function (a) {
+      var el = li('<span class="stamp"></span><span class="note"></span>');
+      el.querySelector('.stamp').textContent = clock(a.seconds);
+      el.querySelector('.note').textContent = a.text;
+      el.addEventListener('click', function () { goTo(a.seconds); });
+      notes.appendChild(el);
+    });
+
+    var clips = $('clips');
+    clips.innerHTML = '';
+    $('clipscard').hidden = !data.clips.length;
+    data.clips.forEach(function (c) {
+      var el = li('<span class="stamp"></span><span class="range"></span>');
+      el.querySelector('.stamp').textContent = '▶ ' + clock(c.startSecond);
+      el.querySelector('.range').textContent =
+        'hasta ' + clock(c.endSecond) + ' · ' + Math.round(c.endSecond - c.startSecond) + ' s';
+      el.addEventListener('click', function () { playRange(c.startSecond, c.endSecond); });
+      clips.appendChild(el);
+    });
+
+    var songs = $('songs');
+    songs.innerHTML = '';
+    $('songscard').hidden = !data.songs.length;
+    data.songs.forEach(function (s) {
+      var el = li('<span class="note"></span><span class="range"></span>');
+      el.querySelector('.note').textContent = s.title;
+      el.querySelector('.range').textContent = s.startSecond != null
+        ? clock(s.startSecond) + (s.endSecond != null ? '–' + clock(s.endSecond) : '')
+        : '';
+      // Navegar a la canción sólo si el token es de banda; si no, saltar al
+      // minuto dentro de este mismo ensayo (no hay a dónde ir).
+      if (data.canNavigate && s.id) {
+        el.addEventListener('click', function () { go(token + '/s/' + s.id); });
+      } else if (s.startSecond != null) {
+        el.addEventListener('click', function () { goTo(s.startSecond); });
+      } else {
+        el.className = 'plain';
+      }
+      songs.appendChild(el);
+    });
+
+    show('rehview');
+    drawWave();
+    renderPins();
+  }
+
+  // -------------------------------------------------------- vista: BANDA ---
+  function renderBand() {
+    $('title').textContent = data.band;
+    $('meta').textContent =
+      data.rehearsals.length + ' ensayo' + (data.rehearsals.length === 1 ? '' : 's') +
+      ' · ' + data.songs.length + ' canción' + (data.songs.length === 1 ? '' : 'es');
+    document.title = data.band + ' — Ensayo Vivo';
+
+    var rl = $('bandrehearsals');
+    rl.innerHTML = '';
+    $('norehearsals').hidden = data.rehearsals.length > 0;
+    data.rehearsals.forEach(function (r) {
+      var el = li('<span class="note"></span><span class="range"></span>');
+      el.querySelector('.note').textContent = r.title;
+      el.querySelector('.range').textContent =
+        [r.date ? fechaLarga(r.date) : '', r.durationSeconds ? clock(r.durationSeconds) : '']
+          .filter(Boolean).join(' · ');
+      el.addEventListener('click', function () { go(token + '/r/' + r.id); });
+      rl.appendChild(el);
+    });
+
+    var sl = $('bandsongs');
+    sl.innerHTML = '';
+    $('nosongs').hidden = data.songs.length > 0;
+    data.songs.forEach(function (s) {
+      var el = li('<span class="note"></span><span class="chip"></span>');
+      el.querySelector('.note').textContent = s.title;
+      var chip = el.querySelector('.chip');
+      chip.textContent = STATUS_LABEL[s.status] || s.status;
+      chip.className = 'chip ' + s.status;
+      el.addEventListener('click', function () { go(token + '/s/' + s.id); });
+      sl.appendChild(el);
+    });
+
+    show('bandview');
+  }
+
+  // ------------------------------------------------------ vista: CANCIÓN ---
+  function renderSong() {
+    $('title').textContent = data.title;
+    $('meta').textContent = STATUS_LABEL[data.status] || data.status || '';
+    document.title = data.title + ' — Ensayo Vivo';
+
+    var list = $('appearances');
+    list.innerHTML = '';
+    $('noappearances').hidden = data.appearances.length > 0;
+    data.appearances.forEach(function (a) {
+      var el = li('<span class="note"></span><span class="range"></span>');
+      el.querySelector('.note').textContent = a.title;
+      el.querySelector('.range').textContent =
+        [a.date ? fechaLarga(a.date) : '',
+         a.startSecond != null
+           ? clock(a.startSecond) + (a.endSecond != null ? '–' + clock(a.endSecond) : '')
+           : ''].filter(Boolean).join(' · ');
+      el.addEventListener('click', function () { go(token + '/r/' + a.rehearsalId); });
+      list.appendChild(el);
+    });
+
+    show('songview');
+  }
+
+  function show(sectionId) {
+    ['rehview', 'bandview', 'songview'].forEach(function (id) {
+      $(id).hidden = id !== sectionId;
+    });
+    $('msg').hidden = true;
+    $('app').hidden = false;
+  }
+
+  // --------------------------------------------------------------- carga ---
+  function api(params) {
+    return fetch(SUPABASE_URL + '/functions/v1/share/' + encodeURIComponent(token) +
+                 '?format=json' + (params || ''))
+      .then(function (r) {
+        // El cuerpo puede no ser JSON (p. ej. un error del gateway): no dejar que
+        // eso caiga en el catch de red, que mostraría un mensaje equivocado.
+        return r.text().then(function (t) {
+          var body = null;
+          try { body = JSON.parse(t); } catch (e) { body = null; }
+          return { ok: r.ok, status: r.status, body: body };
+        });
+      });
+  }
+
+  function route() {
+    var h = parseHash();
+    // Al salir de un ensayo, cortar la reproducción (si no, sigue sonando).
+    audio.pause();
+    clipEnd = null;
+    $('clipnote').textContent = '';
+
+    var params = h.view === 'rehearsal' ? '&rehearsal=' + encodeURIComponent(h.id)
+               : h.view === 'song'      ? '&song=' + encodeURIComponent(h.id)
+               : '';
+
+    $('msg').textContent = 'Cargando…';
+    $('msg').hidden = false;
+    $('app').hidden = true;
+
+    api(params)
+      .then(function (res) {
+        if (!res.ok || !res.body) {
+          fail(
+            (res.body && res.body.error) ||
+            (res.status === 404 ? 'Este link no existe o fue eliminado.' :
+             res.status === 403 ? 'Este link no da acceso a ese contenido.' :
+             res.status === 410 ? 'Este link ya no está disponible.' :
+             'No se pudo abrir este ensayo.')
+          );
+          return;
+        }
+        data = res.body;
+        data.annotations = data.annotations || [];
+        data.clips = data.clips || [];
+        data.songs = data.songs || [];
+        data.rehearsals = data.rehearsals || [];
+        data.appearances = data.appearances || [];
+
+        renderNav(data.scope);
+        if (data.scope === 'band') renderBand();
+        else if (data.scope === 'song') renderSong();
+        else renderRehearsal();
+      })
+      .catch(function () {
+        fail('No se pudo conectar. Revisá tu internet y volvé a intentar.');
+      });
+  }
+
+  function renderNav(scope) {
+    var nav = $('nav');
+    nav.innerHTML = '';
+    // Sólo hay a dónde volver si el token es de banda y no estamos en la raíz.
+    var isRoot = scope === 'band';
+    var canGoBack = !isRoot && (data.canNavigate || scope === 'song');
+    if (!canGoBack) return;
+    var a = document.createElement('a');
+    a.href = '#' + token;
+    a.textContent = '‹ Volver a la banda';
+    nav.appendChild(a);
+  }
+
+  // Si el navegador reusa la pestaña para otro link, cambia sólo el # y no se
+  // dispara una carga nueva: quedaría el contenido anterior en pantalla. Si
+  // cambió el TOKEN recargamos; si cambió sólo la vista, ruteamos sin recargar.
+  window.addEventListener('hashchange', function () {
+    if (parseHash().token !== token) location.reload();
+    else route();
+  });
+
+  window.addEventListener('resize', function () { drawWave(); renderPins(); });
 
   // ------------------------------------------------------------- eventos ---
   $('play').addEventListener('click', function () {
@@ -339,7 +570,6 @@
   });
   audio.addEventListener('play', function () { $('play').textContent = '⏸ Pausar'; });
   audio.addEventListener('pause', function () { $('play').textContent = '▶ Reproducir'; });
-
   audio.addEventListener('timeupdate', function () {
     if (clipEnd != null && audio.currentTime >= clipEnd) {
       audio.pause();
@@ -355,75 +585,25 @@
     drawWave();
     renderPins();
   });
-  window.addEventListener('resize', function () { drawWave(); renderPins(); });
 
   function highlightActiveNote() {
+    if (!data || !data.annotations) return;
     var t = audio.currentTime;
     var items = $('notes').children;
     for (var i = 0; i < items.length; i++) {
       var a = data.annotations[i];
-      var on = t >= a.seconds && t < a.seconds + NOTE_WINDOW_S;
-      items[i].classList.toggle('active', on);
+      if (!a) continue;
+      items[i].classList.toggle('active', t >= a.seconds && t < a.seconds + NOTE_WINDOW_S);
     }
   }
 
-  // --------------------------------------------------------------- carga ---
-  // Si el navegador reusa la pestaña para otro link (cambia sólo el #), no se
-  // dispara una carga nueva y quedaría el ensayo anterior en pantalla.
-  window.addEventListener('hashchange', function () { location.reload(); });
-
-  var token = readToken();
+  // --------------------------------------------------------------- inicio ---
+  token = parseHash().token;
   if (!token) {
     fail('Falta el código del link. Pedí que te lo compartan de nuevo.');
     return;
   }
-
-  fetch(SUPABASE_URL + '/functions/v1/share/' + encodeURIComponent(token) + '?format=json')
-    .then(function (r) {
-      // El cuerpo puede no ser JSON (p. ej. un error del gateway): no dejar que
-      // eso caiga en el catch de red, que mostraría un mensaje equivocado.
-      return r.text().then(function (t) {
-        var body = null;
-        try { body = JSON.parse(t); } catch (e) { body = null; }
-        return { ok: r.ok, status: r.status, body: body };
-      });
-    })
-    .then(function (res) {
-      if (!res.ok || !res.body) {
-        fail(
-          (res.body && res.body.error) ||
-          (res.status === 404 ? 'Este link no existe o fue eliminado.' :
-           res.status === 410 ? 'Este link ya no está disponible.' :
-           'No se pudo abrir este ensayo.')
-        );
-        return;
-      }
-      data = res.body;
-      data.annotations = data.annotations || [];
-      data.clips = data.clips || [];
-      data.songs = data.songs || [];
-
-      document.title = data.title + (data.band ? ' · ' + data.band : '') + ' — Ensayo Vivo';
-      $('title').textContent = data.title;
-      var bits = [];
-      if (data.band) bits.push(data.band);
-      if (data.date) bits.push(new Date(data.date + 'T00:00:00').toLocaleDateString('es-UY',
-        { day: 'numeric', month: 'long', year: 'numeric' }));
-      if (data.durationSeconds) bits.push(clock(data.durationSeconds));
-      $('meta').textContent = bits.join(' · ');
-
-      audio.src = data.audioUrl;
-      $('dur').textContent = clock(data.durationSeconds || 0);
-
-      renderLists();
-      $('msg').hidden = true;
-      $('app').hidden = false;
-      drawWave();
-      renderPins();
-    })
-    .catch(function () {
-      fail('No se pudo conectar. Revisá tu internet y volvé a intentar.');
-    });
+  route();
 })();
 </script>
 </body>
