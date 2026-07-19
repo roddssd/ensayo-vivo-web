@@ -1,0 +1,532 @@
+<!doctype html>
+<html lang="es">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+<meta name="color-scheme" content="dark" />
+<meta name="robots" content="noindex, nofollow" />
+<title>Ensayo Vivo — Miembros</title>
+<style>
+  :root {
+    --bg: #0E0E10; --surface: #16161B; --surface-alt: #242429;
+    --primary: #3BA7C4; --primary-soft: rgba(59,167,196,.15); --primary-soft-text: #7ECFE3;
+    --text: #F2F2F3; --muted: #9A9AA2; --border: #26262C; --border-strong: #3A3A42;
+    --success: #46A758; --danger: #E5484D; --warning: #E0A030; --radius-card: 14px;
+  }
+  * { box-sizing: border-box; }
+  body {
+    margin: 0; background: var(--bg); color: var(--text);
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+    line-height: 1.4; padding: 20px 16px 48px; max-width: 720px; margin-inline: auto;
+  }
+  h1 { font-size: 24px; font-weight: 700; letter-spacing: -.3px; margin: 0 0 4px; }
+  .sub { color: var(--muted); font-size: 14px; margin-bottom: 20px; }
+  .card {
+    background: var(--surface); border: 1px solid var(--border);
+    border-radius: var(--radius-card); padding: 16px; margin-bottom: 16px;
+  }
+  h2 {
+    font-size: 13px; font-weight: 600; text-transform: uppercase; letter-spacing: .6px;
+    color: var(--muted); margin: 0 0 12px;
+  }
+  label { display: block; font-size: 14px; color: var(--muted); margin-bottom: 6px; }
+  input, textarea {
+    width: 100%; font: inherit; color: var(--text); background: var(--surface-alt);
+    border: 1px solid var(--border-strong); border-radius: 10px; padding: 12px;
+    margin-bottom: 12px;
+  }
+  textarea { resize: vertical; min-height: 72px; }
+  button {
+    font: inherit; color: var(--text); background: var(--surface-alt);
+    border: 1px solid var(--border); border-radius: 10px; padding: 10px 14px; cursor: pointer;
+  }
+  button:hover:not(:disabled) { border-color: var(--primary); }
+  button:disabled { opacity: .5; cursor: default; }
+  button.primary { background: var(--primary); color: #04222B; border-color: var(--primary); font-weight: 600; }
+  button.ghost { background: none; border-color: transparent; color: var(--primary-soft-text); padding: 6px 8px; }
+  .row { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; }
+  .grow { flex: 1; }
+  ul { list-style: none; margin: 0; padding: 0; }
+  li { display: flex; gap: 10px; align-items: baseline; padding: 10px 8px; border-radius: 8px; }
+  li + li { border-top: 1px solid var(--border); }
+  li.tap { cursor: pointer; }
+  li.tap:hover { background: var(--surface-alt); }
+  .stamp { color: var(--primary-soft-text); font-variant-numeric: tabular-nums; font-size: 14px; flex-shrink: 0; }
+  .grow-text { flex: 1; }
+  .range { color: var(--muted); font-size: 13px; }
+  .dot { width: 10px; height: 10px; border-radius: 5px; flex-shrink: 0; align-self: center; }
+  .author { font-size: 12px; color: var(--muted); }
+  .empty { color: var(--muted); font-size: 14px; padding: 4px 8px; }
+  .err { color: var(--danger); font-size: 14px; margin-bottom: 12px; }
+  .ok { color: var(--success); font-size: 14px; margin-bottom: 12px; }
+  #topbar { display: flex; justify-content: space-between; align-items: center; margin-bottom: 16px; min-height: 32px; }
+  #wave { width: 100%; height: 72px; display: block; cursor: pointer; }
+  .times { display: flex; justify-content: space-between; color: var(--muted); font-size: 13px; }
+  #pins { position: relative; height: 20px; }
+  .pin {
+    position: absolute; top: 0; transform: translateX(-50%);
+    width: 14px; height: 14px; border-radius: 7px; border: none; padding: 0; cursor: pointer;
+  }
+  footer { text-align: center; color: var(--muted); font-size: 12px; margin-top: 32px; }
+</style>
+</head>
+<body>
+
+<div id="topbar">
+  <span id="who" class="sub" style="margin:0"></span>
+  <button id="logout" class="ghost" hidden>Salir</button>
+</div>
+
+<div id="loading" class="sub">Cargando…</div>
+
+<!-- ============================== AUTENTICACIÓN ============================ -->
+<section id="authview" hidden>
+  <h1>Ensayo Vivo</h1>
+  <div class="sub">Entrá para ver y anotar los ensayos de tu banda.</div>
+  <div class="card">
+    <div id="autherr" class="err" hidden></div>
+    <div id="authok" class="ok" hidden></div>
+    <label for="email">Email</label>
+    <input id="email" type="email" autocomplete="email" />
+    <label for="pass">Contraseña</label>
+    <input id="pass" type="password" autocomplete="current-password" />
+    <div class="row">
+      <button id="signin" class="primary">Entrar</button>
+      <button id="signup">Crear cuenta</button>
+    </div>
+  </div>
+  <footer>Para grabar ensayos necesitás la app de Android. Acá podés escuchar y anotar.</footer>
+</section>
+
+<!-- ================================= BANDAS =============================== -->
+<section id="bandsview" hidden>
+  <h1>Mis bandas</h1>
+  <div class="sub" id="bandssub"></div>
+  <div class="card">
+    <h2>Bandas</h2>
+    <ul id="bands"></ul>
+    <p class="empty" id="nobands" hidden>Todavía no perteneces a ninguna banda. Usá un código de invitación.</p>
+  </div>
+  <div class="card">
+    <h2>Unirme a una banda</h2>
+    <div id="joinerr" class="err" hidden></div>
+    <div id="joinok" class="ok" hidden></div>
+    <label for="code">Código de invitación</label>
+    <input id="code" placeholder="Ej: K7M2P9QX" autocapitalize="characters" />
+    <button id="join" class="primary">Unirme</button>
+  </div>
+  <div class="card">
+    <h2>Mi perfil</h2>
+    <div id="nameok" class="ok" hidden></div>
+    <label for="myname">Tu nombre (así te ven tus compañeros en las notas)</label>
+    <input id="myname" placeholder="Ej: Rodri" />
+    <button id="savename">Guardar</button>
+  </div>
+</section>
+
+<!-- ================================ ENSAYOS =============================== -->
+<section id="rehsview" hidden>
+  <button class="ghost" id="backtobands">‹ Mis bandas</button>
+  <h1 id="bandtitle">Banda</h1>
+  <div class="sub" id="bandsub"></div>
+  <div class="card">
+    <h2>Ensayos</h2>
+    <ul id="rehearsals"></ul>
+    <p class="empty" id="norehs" hidden>Esta banda todavía no tiene ensayos grabados.</p>
+  </div>
+</section>
+
+<!-- ================================ DETALLE =============================== -->
+<section id="detailview" hidden>
+  <button class="ghost" id="backtorehs">‹ Ensayos</button>
+  <h1 id="rehtitle">Ensayo</h1>
+  <div class="sub" id="rehsub"></div>
+
+  <div class="card">
+    <div id="pins"></div>
+    <canvas id="wave"></canvas>
+    <div class="times"><span id="cur">0:00</span><span id="dur">0:00</span></div>
+    <div class="row" style="margin-top:12px">
+      <button id="play" class="primary">▶ Reproducir</button>
+      <button id="back10">−10 s</button>
+      <button id="fwd10">+10 s</button>
+      <a id="download" class="ghost" style="text-decoration:none" download>⬇ Descargar</a>
+    </div>
+    <audio id="audio" preload="metadata"></audio>
+  </div>
+
+  <div class="card">
+    <h2>Nueva nota</h2>
+    <div id="noteerr" class="err" hidden></div>
+    <div class="row" style="margin-bottom:8px">
+      <span class="range">Momento:</span>
+      <strong id="notestamp" class="stamp">0:00</strong>
+      <button id="usenow" class="ghost">Usar el momento actual</button>
+    </div>
+    <textarea id="notetext" placeholder="Qué pasó acá…"></textarea>
+    <button id="addnote" class="primary">Agregar nota</button>
+  </div>
+
+  <div class="card">
+    <h2>Notas</h2>
+    <ul id="notes"></ul>
+    <p class="empty" id="nonotes" hidden>Todavía no hay notas en este ensayo.</p>
+  </div>
+</section>
+
+<script type="module">
+import { createClient } from 'https://esm.sh/@supabase/supabase-js@2';
+
+const SUPABASE_URL = 'https://ykgbqhhnrewgmujauztt.supabase.co';
+// La anon key es pública por diseño (viaja en el bundle de cualquier app
+// Supabase). Lo que protege los datos son las RLS, no esta clave.
+const SUPABASE_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InlrZ2JxaGhucmV3Z211amF1enR0Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODM2MjY0MzEsImV4cCI6MjA5OTIwMjQzMX0.AqNbziUrSKyBQEh3uJ04W6FcQAjkUPGsZ6qMnMRoezs';
+
+const sb = createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+
+const $ = (id) => document.getElementById(id);
+const VIEWS = ['authview', 'bandsview', 'rehsview', 'detailview'];
+
+// Paleta de autores: el color sale del id, así cada persona tiene siempre el
+// mismo sin que nadie lo administre. Tonos distinguibles sobre fondo oscuro.
+const AUTHOR_COLORS = [
+  '#3BA7C4', '#E0A030', '#46A758', '#C46BD0', '#E5748A',
+  '#7ECFE3', '#B8CE5A', '#E58A4D', '#8A8FE5', '#4DC9B0',
+];
+function colorFor(uuid) {
+  let h = 0;
+  for (let i = 0; i < (uuid || '').length; i++) h = (h * 31 + uuid.charCodeAt(i)) >>> 0;
+  return AUTHOR_COLORS[h % AUTHOR_COLORS.length];
+}
+
+const clock = (s) => {
+  if (!isFinite(s) || s < 0) s = 0;
+  const m = Math.floor(s / 60), r = Math.floor(s % 60);
+  return m + ':' + String(r).padStart(2, '0');
+};
+const fechaLarga = (d) => d
+  ? new Date(d + 'T00:00:00').toLocaleDateString('es-UY', { day: 'numeric', month: 'long', year: 'numeric' })
+  : '';
+
+function show(view) {
+  $('loading').hidden = true;
+  VIEWS.forEach((v) => { $(v).hidden = v !== view; });
+  $('logout').hidden = view === 'authview';
+}
+function flash(el, msg, ms = 4000) {
+  el.textContent = msg; el.hidden = false;
+  if (ms) setTimeout(() => { el.hidden = true; }, ms);
+}
+
+// Estado
+let me = null;          // { id, email }
+let myName = '';
+let bands = [];
+let currentBand = null;
+let currentReh = null;
+let notes = [];
+let profiles = {};      // id -> nombre
+
+// ------------------------------------------------------------------ AUTH ---
+$('signin').addEventListener('click', async () => {
+  $('autherr').hidden = true;
+  const { error } = await sb.auth.signInWithPassword({
+    email: $('email').value.trim(), password: $('pass').value,
+  });
+  if (error) {
+    flash($('autherr'), error.message === 'Email not confirmed'
+      ? 'Todavía no confirmaste tu email. Revisá tu correo.'
+      : error.message === 'Invalid login credentials'
+        ? 'Email o contraseña incorrectos.'
+        : error.message, 0);
+  }
+});
+
+$('signup').addEventListener('click', async () => {
+  $('autherr').hidden = true; $('authok').hidden = true;
+  const email = $('email').value.trim();
+  const { data, error } = await sb.auth.signUp({ email, password: $('pass').value });
+  if (error) { flash($('autherr'), error.message, 0); return; }
+  // Con "Confirm email" activo, signUp no devuelve sesión: hay que avisar.
+  if (!data.session) {
+    flash($('authok'), 'Te mandamos un mail a ' + email + '. Confirmalo y volvé a entrar.', 0);
+  }
+});
+
+$('logout').addEventListener('click', async () => { await sb.auth.signOut(); });
+
+// -------------------------------------------------------------- MIS BANDAS --
+async function loadBands() {
+  const { data: mem, error } = await sb
+    .from('band_members')
+    .select('band_id, bands (id, name)')
+    .eq('user_id', me.id);
+  if (error) { flash($('joinerr'), error.message, 0); return; }
+
+  bands = (mem ?? []).map((m) => m.bands).filter(Boolean);
+  const ul = $('bands'); ul.innerHTML = '';
+  $('nobands').hidden = bands.length > 0;
+  bands.forEach((b) => {
+    const li = document.createElement('li');
+    li.className = 'tap';
+    li.innerHTML = '<span class="grow-text"></span><span class="range">›</span>';
+    li.querySelector('.grow-text').textContent = b.name;
+    li.addEventListener('click', () => openBand(b));
+    ul.appendChild(li);
+  });
+  $('bandssub').textContent = me.email;
+  $('myname').value = myName;
+  show('bandsview');
+}
+
+$('join').addEventListener('click', async () => {
+  $('joinerr').hidden = true; $('joinok').hidden = true;
+  const code = $('code').value.trim().toUpperCase();
+  if (!code) return;
+  const { data, error } = await sb.rpc('redeem_band_invite', { _code: code });
+  if (error) { flash($('joinerr'), error.message.replace(/^.*?:\s*/, ''), 0); return; }
+  const band = Array.isArray(data) ? data[0] : data;
+  $('code').value = '';
+  flash($('joinok'), '¡Listo! Ya sos parte de ' + (band?.band_name ?? 'la banda') + '.');
+  await loadBands();
+});
+
+$('savename').addEventListener('click', async () => {
+  const name = $('myname').value.trim();
+  const { error } = await sb.from('profiles').update({ name }).eq('id', me.id);
+  if (error) { flash($('joinerr'), error.message, 0); return; }
+  myName = name;
+  profiles[me.id] = name;
+  flash($('nameok'), 'Nombre guardado.');
+});
+
+// ---------------------------------------------------------------- ENSAYOS ---
+async function openBand(band) {
+  currentBand = band;
+  $('bandtitle').textContent = band.name;
+  const { data, error } = await sb
+    .from('rehearsals')
+    .select('id, title, date, duration_seconds, audio_file_url, waveform_json')
+    .eq('band_id', band.id)
+    .order('date', { ascending: false });
+  if (error) { alert(error.message); return; }
+
+  const list = data ?? [];
+  $('bandsub').textContent = list.length + ' ensayo' + (list.length === 1 ? '' : 's');
+  const ul = $('rehearsals'); ul.innerHTML = '';
+  $('norehs').hidden = list.length > 0;
+  list.forEach((r) => {
+    const li = document.createElement('li');
+    li.className = 'tap';
+    li.innerHTML = '<span class="grow-text"></span><span class="range"></span>';
+    li.querySelector('.grow-text').textContent = r.title || 'Ensayo';
+    li.querySelector('.range').textContent =
+      [fechaLarga(r.date), r.duration_seconds ? clock(r.duration_seconds) : ''].filter(Boolean).join(' · ');
+    li.addEventListener('click', () => openRehearsal(r));
+    ul.appendChild(li);
+  });
+  show('rehsview');
+}
+
+$('backtobands').addEventListener('click', () => { audio.pause(); show('bandsview'); });
+$('backtorehs').addEventListener('click', () => { audio.pause(); show('rehsview'); });
+
+// ---------------------------------------------------------------- DETALLE ---
+const audio = $('audio'), canvas = $('wave'), ctx = canvas.getContext('2d');
+
+async function openRehearsal(reh) {
+  currentReh = reh;
+  $('rehtitle').textContent = reh.title || 'Ensayo';
+  $('rehsub').textContent =
+    [fechaLarga(reh.date), reh.duration_seconds ? clock(reh.duration_seconds) : ''].filter(Boolean).join(' · ');
+  $('dur').textContent = clock(reh.duration_seconds || 0);
+  $('cur').textContent = '0:00';
+
+  // El audio se pide firmado con la sesión del miembro: las policies del bucket
+  // ya validan membresía, así que no hace falta la Edge Function.
+  if (reh.audio_file_url) {
+    const nombre = (reh.title || 'ensayo').replace(/[^\w\s.-]/g, '').trim() || 'ensayo';
+    const ext = reh.audio_file_url.split('.').pop();
+    const { data: signed } = await sb.storage
+      .from('rehearsal-audio')
+      .createSignedUrl(reh.audio_file_url, 7200, { download: nombre + '.' + ext });
+    const { data: play } = await sb.storage
+      .from('rehearsal-audio')
+      .createSignedUrl(reh.audio_file_url, 7200);
+    audio.src = play?.signedUrl ?? '';
+    $('download').href = signed?.signedUrl ?? '#';
+    $('download').hidden = !signed?.signedUrl;
+  } else {
+    audio.removeAttribute('src');
+    $('download').hidden = true;
+  }
+
+  await loadNotes();
+  show('detailview');
+  drawWave();
+}
+
+async function loadNotes() {
+  const { data, error } = await sb
+    .from('annotations')
+    .select('id, timestamp_seconds, text, author_id')
+    .eq('rehearsal_id', currentReh.id)
+    .order('timestamp_seconds', { ascending: true });
+  if (error) { flash($('noteerr'), error.message, 0); return; }
+  notes = data ?? [];
+
+  // Nombres de los autores (la policy nueva permite leer el perfil de un
+  // compañero de banda; ver migración 0007).
+  const ids = [...new Set(notes.map((n) => n.author_id).filter((id) => !(id in profiles)))];
+  if (ids.length) {
+    const { data: profs } = await sb.from('profiles').select('id, name').in('id', ids);
+    (profs ?? []).forEach((p) => { profiles[p.id] = p.name; });
+    ids.forEach((id) => { if (!(id in profiles)) profiles[id] = ''; });
+  }
+  renderNotes();
+  renderPins();
+}
+
+function authorLabel(id) {
+  if (id === me.id) return (profiles[id] || myName || 'Vos') + ' (vos)';
+  return profiles[id] || 'Miembro';
+}
+
+function renderNotes() {
+  const ul = $('notes'); ul.innerHTML = '';
+  $('nonotes').hidden = notes.length > 0;
+  notes.forEach((n) => {
+    const li = document.createElement('li');
+    li.className = 'tap';
+    li.innerHTML =
+      '<span class="dot"></span><span class="stamp"></span>' +
+      '<span class="grow-text"><span class="txt"></span><br><span class="author"></span></span>';
+    li.querySelector('.dot').style.background = colorFor(n.author_id);
+    li.querySelector('.stamp').textContent = clock(Number(n.timestamp_seconds));
+    li.querySelector('.txt').textContent = n.text;
+    li.querySelector('.author').textContent = authorLabel(n.author_id);
+    li.addEventListener('click', () => {
+      audio.currentTime = Number(n.timestamp_seconds);
+      audio.play();
+    });
+    // Sólo se puede borrar lo propio (la RLS lo impone igual del lado servidor).
+    if (n.author_id === me.id) {
+      const del = document.createElement('button');
+      del.className = 'ghost';
+      del.textContent = '🗑';
+      del.addEventListener('click', async (e) => {
+        e.stopPropagation();
+        if (!confirm('¿Borrar esta nota?')) return;
+        const { error } = await sb.from('annotations').delete().eq('id', n.id);
+        if (error) { flash($('noteerr'), error.message, 0); return; }
+        await loadNotes();
+      });
+      li.appendChild(del);
+    }
+    ul.appendChild(li);
+  });
+}
+
+function renderPins() {
+  const box = $('pins'); box.innerHTML = '';
+  const total = duration();
+  if (!total) return;
+  notes.forEach((n) => {
+    const b = document.createElement('button');
+    b.className = 'pin';
+    b.style.background = colorFor(n.author_id);
+    b.style.left = (Math.max(0, Math.min(1, Number(n.timestamp_seconds) / total)) * 100) + '%';
+    b.title = n.text;
+    b.addEventListener('click', () => {
+      audio.currentTime = Number(n.timestamp_seconds);
+      audio.play();
+    });
+    box.appendChild(b);
+  });
+}
+
+let pendingStamp = 0;
+$('usenow').addEventListener('click', () => {
+  pendingStamp = audio.currentTime || 0;
+  $('notestamp').textContent = clock(pendingStamp);
+});
+
+$('addnote').addEventListener('click', async () => {
+  $('noteerr').hidden = true;
+  const text = $('notetext').value.trim();
+  if (!text) return;
+  const { error } = await sb.from('annotations').insert({
+    rehearsal_id: currentReh.id,
+    timestamp_seconds: pendingStamp,
+    text,
+    author_id: me.id,
+  });
+  if (error) { flash($('noteerr'), error.message, 0); return; }
+  $('notetext').value = '';
+  await loadNotes();
+});
+
+// ------------------------------------------------------------------ ONDA ---
+function duration() {
+  if (isFinite(audio.duration) && audio.duration > 0) return audio.duration;
+  return currentReh?.duration_seconds || 0;
+}
+
+function drawWave() {
+  const ratio = window.devicePixelRatio || 1;
+  const w = canvas.clientWidth, h = canvas.clientHeight;
+  if (!w) return;
+  canvas.width = w * ratio; canvas.height = h * ratio;
+  ctx.setTransform(ratio, 0, 0, ratio, 0, 0);
+  ctx.clearRect(0, 0, w, h);
+  const peaks = currentReh?.waveform_json;
+  const total = duration();
+  const frac = total > 0 ? audio.currentTime / total : 0;
+  if (!Array.isArray(peaks) || !peaks.length) {
+    ctx.fillStyle = '#242429'; ctx.fillRect(0, h / 2 - 3, w, 6);
+    ctx.fillStyle = '#3BA7C4'; ctx.fillRect(0, h / 2 - 3, w * frac, 6);
+    return;
+  }
+  const n = peaks.length, bw = w / n;
+  for (let i = 0; i < n; i++) {
+    const bh = Math.max(0.02, Math.min(1, peaks[i])) * (h - 6);
+    ctx.fillStyle = (i / n) <= frac ? '#3BA7C4' : '#3A3A42';
+    ctx.fillRect(i * bw, (h - bh) / 2, Math.max(1, bw - (bw > 3 ? 1 : 0)), bh);
+  }
+}
+
+canvas.addEventListener('click', (e) => {
+  const rect = canvas.getBoundingClientRect();
+  audio.currentTime = Math.max(0, Math.min(1, (e.clientX - rect.left) / rect.width)) * duration();
+});
+$('play').addEventListener('click', () => { audio.paused ? audio.play() : audio.pause(); });
+$('back10').addEventListener('click', () => { audio.currentTime = Math.max(0, audio.currentTime - 10); });
+$('fwd10').addEventListener('click', () => { audio.currentTime = Math.min(duration(), audio.currentTime + 10); });
+audio.addEventListener('play', () => { $('play').textContent = '⏸ Pausar'; });
+audio.addEventListener('pause', () => { $('play').textContent = '▶ Reproducir'; });
+audio.addEventListener('timeupdate', () => { $('cur').textContent = clock(audio.currentTime); drawWave(); });
+audio.addEventListener('loadedmetadata', () => { $('dur').textContent = clock(duration()); drawWave(); renderPins(); });
+window.addEventListener('resize', () => { drawWave(); renderPins(); });
+
+// ----------------------------------------------------------------- INICIO ---
+sb.auth.onAuthStateChange(async (_event, session) => {
+  if (session?.user) {
+    me = { id: session.user.id, email: session.user.email };
+    $('who').textContent = me.email;
+    const { data: prof } = await sb.from('profiles').select('name').eq('id', me.id).maybeSingle();
+    myName = prof?.name ?? '';
+    profiles[me.id] = myName;
+    await loadBands();
+  } else {
+    me = null; $('who').textContent = '';
+    show('authview');
+  }
+});
+
+// Primer arranque: si no hay sesión guardada, onAuthStateChange igual dispara.
+sb.auth.getSession().then(({ data }) => {
+  if (!data.session) show('authview');
+});
+</script>
+</body>
+</html>
